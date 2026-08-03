@@ -1,7 +1,12 @@
 # Keep the deployment target (c_stdlib_version / MACOSX_DEPLOYMENT_TARGET)
-# unchanged so the package keeps running on older macOS, but build against the
-# macOS 26 SDK so the Metal toolchain can compile the newer M-series
-# (MetalPerformancePrimitives) kernels. See recipe/0002-*.patch.
+# unchanged so the package keeps running on older macOS. Build against the
+# newest macOS SDK conda-forge-ci-setup currently ships (26.0). The NAX
+# (MetalPerformancePrimitives) kernels want a >= 26.2 C++ sysroot, but 26.2 is
+# not yet packaged in conda-forge-ci-setup's download_osx_sdk.sh (bumping it
+# there fails the SDK download), so 26.0 is the ceiling for now. This is not the
+# limiting factor: the NAX gate is ultimately driven by the Metal 4 / Xcode
+# >= 26.2 toolchain, which MLX reads from `xcrun --show-sdk-version`
+# independently of this C++ sysroot pin. See recipe/0002-*.patch.
 c_stdlib_version:          # [osx and arm64]
   - "14.5"                 # [osx and arm64]
 MACOSX_SDK_VERSION:        # [osx and arm64]
