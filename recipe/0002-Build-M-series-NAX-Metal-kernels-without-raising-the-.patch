@@ -1,0 +1,215 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: conda-forge <noreply@conda-forge.org>
+Date: Mon, 3 Aug 2026 09:00:00 +0000
+Subject: [PATCH] Ship M-series NAX (Metal 4) kernels without raising the
+ deployment target
+
+The NAX kernels (steel_attention_nax, steel_gemm_*_nax, quantized_nax) use
+MetalPerformancePrimitives cooperative-tensor matmul (mpp::tensor_ops) and must
+be compiled for macOS 26.2 / Metal 4.0 (AIR >= 2.8). They give a large
+attention/SDPA and GEMM speedup on capable M-series GPUs.
+
+Upstream only builds them when the whole library targets macOS >= 26.2
+(MLX_METAL_VERSION >= 400 AND MACOS_SDK_VERSION >= 26.2 AND
+CMAKE_OSX_DEPLOYMENT_TARGET >= 26.2), because air-lld cannot embed Metal 4
+(AIR 2.8) functions into the base mlx.metallib when it is linked for an older
+deployment target -- it drops them with a warning. Forcing the deployment
+target up would drop every user on an older macOS.
+
+Instead, compile the NAX kernels into a SEPARATE mlx_nax.metallib linked for
+macOS 26.2, next to mlx.metallib. It is loaded on demand via
+get_library("mlx_nax") from the NAX kernel getters, which MLX only ever calls
+when is_nax_available() is true at runtime. is_nax_available()
+(mlx/backend/metal/device.cpp) guards with __builtin_available(macOS 26.2, *)
+plus a GPU-generation check, so an older-macOS host never dispatches a NAX
+kernel and never loads the second metallib -- it runs exactly as before, while
+capable macOS 26.2+ M-series GPUs get the faster kernels.
+
+The base mlx.metallib and the library's MACOSX_DEPLOYMENT_TARGET are unchanged.
+---
+diff --git a/mlx/backend/metal/kernels/CMakeLists.txt b/mlx/backend/metal/kernels/CMakeLists.txt
+index edc169e..25e3093 100644
+--- a/mlx/backend/metal/kernels/CMakeLists.txt
++++ b/mlx/backend/metal/kernels/CMakeLists.txt
+@@ -155,22 +155,60 @@ if(NOT MLX_METAL_JIT)
+   build_kernel(gemv_masked steel/utils.h)
+   build_kernel(steel/attn/kernels/steel_attention ${STEEL_ATTN_HEADERS})
+ 
+-  if(MLX_METAL_VERSION GREATER_EQUAL 400
+-     AND MACOS_SDK_VERSION VERSION_GREATER_EQUAL 26.2
+-     AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_GREATER_EQUAL 26.2)
++  # The M-series NAX kernels use MetalPerformancePrimitives cooperative-tensor
++  # matmul (mpp::tensor_ops) and must be compiled for macOS 26.2 / Metal 4.0
++  # (AIR >= 2.8). air-lld refuses to embed those functions into the base
++  # mlx.metallib when it is linked for an older deployment target, so instead of
++  # forcing the whole library up to macOS 26.2 we compile the NAX kernels into a
++  # SEPARATE mlx_nax.metallib linked for 26.2. The library deployment target is
++  # left untouched, and MLX only ever loads/creates the NAX pipelines when
++  # is_nax_available() is true at runtime -- see mlx/backend/metal/device.cpp,
++  # which additionally guards with __builtin_available(macOS 26.2, *) -- so an
++  # older-macOS build keeps running exactly as before and never touches the
++  # second metallib there.
++  if(NOT DEFINED MLX_NAX_DEPLOYMENT_TARGET)
++    set(MLX_NAX_DEPLOYMENT_TARGET "26.2")
++  endif()
++  if(MACOS_SDK_VERSION VERSION_GREATER_EQUAL 26.2)
++    function(build_nax_kernel KERNEL)
++      set(SRCFILE ${CMAKE_CURRENT_SOURCE_DIR}/${KERNEL}.metal)
++      cmake_path(GET KERNEL STEM TARGET)
++      set(METAL_FLAGS
++          -x
++          metal
++          -Wall
++          -Wextra
++          -fno-fast-math
++          -Wno-c++17-extensions
++          -Wno-c++20-extensions
++          "-mmacosx-version-min=${MLX_NAX_DEPLOYMENT_TARGET}")
++      add_custom_command(
++        COMMAND xcrun -sdk macosx metal ${METAL_FLAGS} -c ${SRCFILE}
++                -I${PROJECT_SOURCE_DIR} -o ${TARGET}.air
++        DEPENDS ${SRCFILE} ${ARGN} ${BASE_HEADERS}
++        OUTPUT ${TARGET}.air
++        COMMENT "Building ${TARGET}.air (NAX, macOS ${MLX_NAX_DEPLOYMENT_TARGET})"
++        VERBATIM)
++      set(NAX_KERNEL_AIR
++          ${TARGET}.air ${NAX_KERNEL_AIR}
++          PARENT_SCOPE)
++    endfunction()
+ 
+-    build_kernel(steel/gemm/kernels/steel_gemm_fused_nax ${STEEL_NAX_HEADERS})
+-    build_kernel(steel/gemm/kernels/steel_gemm_gather_nax ${STEEL_NAX_HEADERS})
+-    build_kernel(steel/gemm/kernels/steel_gemm_splitk_nax ${STEEL_NAX_HEADERS})
+-    build_kernel(steel/gemm/kernels/steel_gemm_segmented_nax
+-                 ${STEEL_NAX_HEADERS})
++    build_nax_kernel(steel/gemm/kernels/steel_gemm_fused_nax
++                     ${STEEL_NAX_HEADERS})
++    build_nax_kernel(steel/gemm/kernels/steel_gemm_gather_nax
++                     ${STEEL_NAX_HEADERS})
++    build_nax_kernel(steel/gemm/kernels/steel_gemm_splitk_nax
++                     ${STEEL_NAX_HEADERS})
++    build_nax_kernel(steel/gemm/kernels/steel_gemm_segmented_nax
++                     ${STEEL_NAX_HEADERS})
+ 
+-    build_kernel(quantized_nax quantized_nax.h ${STEEL_NAX_HEADERS})
+-    build_kernel(fp_quantized_nax fp4.h fp8.h fp_quantized_nax.h
+-                 ${STEEL_NAX_HEADERS})
++    build_nax_kernel(quantized_nax quantized_nax.h ${STEEL_NAX_HEADERS})
++    build_nax_kernel(fp_quantized_nax fp4.h fp8.h fp_quantized_nax.h
++                     ${STEEL_NAX_HEADERS})
+ 
+-    build_kernel(steel/attn/kernels/steel_attention_nax
+-                 ${STEEL_NAX_ATTN_HEADERS})
++    build_nax_kernel(steel/attn/kernels/steel_attention_nax
++                     ${STEEL_NAX_ATTN_HEADERS})
+ 
+   else()
+     target_compile_definitions(mlx PRIVATE MLX_METAL_NO_NAX)
+@@ -195,6 +233,23 @@ add_custom_target(mlx-metallib DEPENDS ${MLX_METAL_PATH}/mlx.metallib)
+ 
+ add_dependencies(mlx mlx-metallib)
+ 
++# Separate metallib for the NAX (Metal 4.0) kernels, linked for macOS 26.2 so
++# that the base mlx.metallib can keep a lower deployment target. It sits next to
++# mlx.metallib and is loaded on demand via get_library("mlx_nax") only when
++# is_nax_available() is true at runtime.
++if(NAX_KERNEL_AIR)
++  set(NAX_METAL_LINK_FLAGS "-mmacosx-version-min=${MLX_NAX_DEPLOYMENT_TARGET}")
++  add_custom_command(
++    OUTPUT ${MLX_METAL_PATH}/mlx_nax.metallib
++    COMMAND xcrun -sdk macosx metal ${NAX_METAL_LINK_FLAGS} ${NAX_KERNEL_AIR} -o
++            ${MLX_METAL_PATH}/mlx_nax.metallib
++    DEPENDS ${NAX_KERNEL_AIR}
++    COMMENT "Building mlx_nax.metallib"
++    VERBATIM)
++  add_custom_target(mlx-nax-metallib DEPENDS ${MLX_METAL_PATH}/mlx_nax.metallib)
++  add_dependencies(mlx mlx-nax-metallib)
++endif()
++
+ # Install metallib
+ include(GNUInstallDirs)
+ 
+@@ -202,3 +257,10 @@ install(
+   FILES ${MLX_METAL_PATH}/mlx.metallib
+   DESTINATION ${CMAKE_INSTALL_LIBDIR}
+   COMPONENT metallib)
++
++if(NAX_KERNEL_AIR)
++  install(
++    FILES ${MLX_METAL_PATH}/mlx_nax.metallib
++    DESTINATION ${CMAKE_INSTALL_LIBDIR}
++    COMPONENT metallib)
++endif()
+diff --git a/mlx/backend/metal/nojit_kernels.cpp b/mlx/backend/metal/nojit_kernels.cpp
+index 64cfa39..70a9532 100644
+--- a/mlx/backend/metal/nojit_kernels.cpp
++++ b/mlx/backend/metal/nojit_kernels.cpp
+@@ -362,7 +362,8 @@ MTL::ComputePipelineState* get_steel_gemm_fused_nax_kernel(
+     int,
+     int,
+     int) {
+-  return d.get_kernel(kernel_name, hash_name, func_consts);
++  return d.get_kernel(
++      kernel_name, d.get_library("mlx_nax"), hash_name, func_consts);
+ }
+ 
+ MTL::ComputePipelineState* get_steel_gemm_gather_nax_kernel(
+@@ -379,7 +380,8 @@ MTL::ComputePipelineState* get_steel_gemm_gather_nax_kernel(
+     int,
+     int,
+     bool) {
+-  return d.get_kernel(kernel_name, hash_name, func_consts);
++  return d.get_kernel(
++      kernel_name, d.get_library("mlx_nax"), hash_name, func_consts);
+ }
+ 
+ MTL::ComputePipelineState* get_steel_gemm_splitk_nax_kernel(
+@@ -395,7 +397,8 @@ MTL::ComputePipelineState* get_steel_gemm_splitk_nax_kernel(
+     int,
+     int,
+     int) {
+-  return d.get_kernel(kernel_name, hash_name, func_consts);
++  return d.get_kernel(
++      kernel_name, d.get_library("mlx_nax"), hash_name, func_consts);
+ }
+ 
+ MTL::ComputePipelineState* get_steel_gemm_segmented_nax_kernel(
+@@ -411,7 +414,8 @@ MTL::ComputePipelineState* get_steel_gemm_segmented_nax_kernel(
+     int,
+     int,
+     int) {
+-  return d.get_kernel(kernel_name, hash_name, func_consts);
++  return d.get_kernel(
++      kernel_name, d.get_library("mlx_nax"), hash_name, func_consts);
+ }
+ 
+ MTL::ComputePipelineState* get_qmm_nax_kernel(
+@@ -419,7 +423,7 @@ MTL::ComputePipelineState* get_qmm_nax_kernel(
+     const std::string& kernel_name,
+     const std::string&,
+     const std::string&) {
+-  return d.get_kernel(kernel_name);
++  return d.get_kernel(kernel_name, d.get_library("mlx_nax"));
+ }
+ 
+ MTL::ComputePipelineState* get_gather_qmm_nax_kernel(
+@@ -437,7 +441,8 @@ MTL::ComputePipelineState* get_gather_qmm_nax_kernel(
+     int,
+     int,
+     bool) {
+-  return d.get_kernel(kernel_name, hash_name, func_consts);
++  return d.get_kernel(
++      kernel_name, d.get_library("mlx_nax"), hash_name, func_consts);
+ }
+ 
+ MTL::ComputePipelineState* get_steel_attention_kernel(
+@@ -467,7 +472,8 @@ MTL::ComputePipelineState* get_steel_attention_nax_kernel(
+     int,
+     int,
+     const array&) {
+-  return d.get_kernel(kernel_name, hash_name, func_consts);
++  return d.get_kernel(
++      kernel_name, d.get_library("mlx_nax"), hash_name, func_consts);
+ }
+ 
+ } // namespace mlx::core

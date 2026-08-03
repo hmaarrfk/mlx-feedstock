@@ -1,4 +1,8 @@
+# Keep the deployment target (c_stdlib_version / MACOSX_DEPLOYMENT_TARGET)
+# unchanged so the package keeps running on older macOS, but build against the
+# macOS 26 SDK so the Metal toolchain can compile the newer M-series
+# (MetalPerformancePrimitives) kernels. See recipe/0002-*.patch.
 c_stdlib_version:          # [osx and arm64]
   - "14.5"                 # [osx and arm64]
 MACOSX_SDK_VERSION:        # [osx and arm64]
-  - "14.5"                 # [osx and arm64]
+  - "26.0"                 # [osx and arm64]

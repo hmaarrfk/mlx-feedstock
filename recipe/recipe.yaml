@@ -14,9 +14,12 @@ source:
   sha256: 8e74a0eb613861ce50c09402dd99dbc42b65a762e7fdd291caa39f611db978ec
   patches:
     - 0001-Omit-visionOS-from-sources.patch
+    # Build the M-series NAX (MetalPerformancePrimitives) kernels without
+    # raising the library deployment target. See the patch header for details.
+    - 0002-Build-M-series-NAX-Metal-kernels-without-raising-the-.patch
 
 build:
-  number: 0
+  number: 1
   skip: win or match(python, "<3.9") or (osx and x86_64)
 
 requirements:
