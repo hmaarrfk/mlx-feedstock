@@ -63,6 +63,15 @@ tests:
       - pip check
       - if: osx and arm64
         then: python -m unittest discover python/tests
+  # mlx_nax.metallib (the separate Metal 4 / NAX shader library added by
+  # recipe/0002-*.patch) -- along with this test and that patch -- can be dropped
+  # once MACOSX_DEPLOYMENT_TARGET is raised past 26.2.
+  - script:
+      - if: osx and arm64
+        then: python check_nax_metallib.py
+    files:
+      recipe:
+        - check_nax_metallib.py
 
 about:
   summary: An array framework for Apple silicon
