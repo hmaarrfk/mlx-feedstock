@@ -46,31 +46,73 @@ conda config --add channels conda-forge
 conda config --set channel_priority strict
 ```
 
-Once the `conda-forge` channel has been enabled, `mlx` can be installed with `conda`:
+How to use
+----------
+
+<details>
+<summary>With conda</summary>
 
 ```
 conda install mlx
 ```
 
-or with `mamba`:
+</details>
+
+<details>
+<summary>With mamba</summary>
 
 ```
 mamba install mlx
 ```
 
-It is possible to list all of the versions of `mlx` available on your platform with `conda`:
+</details>
+
+<details>
+<summary>With pixi</summary>
+
+```
+# for adding to your local project
+pixi add mlx
+# for installing globally
+pixi global install mlx
+```
+
+</details>
+
+Search package versions
+-----------------------
+
+It is possible to list all of the versions of `mlx` available on your platform:
+
+<details>
+<summary>With conda</summary>
 
 ```
 conda search mlx --channel conda-forge
 ```
 
-or with `mamba`:
+</details>
+
+<details>
+<summary>With mamba</summary>
 
 ```
 mamba search mlx --channel conda-forge
 ```
 
-Alternatively, `mamba repoquery` may provide more information:
+</details>
+
+<details>
+<summary>With pixi</summary>
+
+```
+pixi search mlx --channel conda-forge
+```
+
+</details>
+
+<details>
+<summary>With mamba repoquery, which may provide more information</summary>
 
 ```
 # Search all versions available on your platform:
@@ -82,6 +124,8 @@ mamba repoquery whoneeds mlx --channel conda-forge
 # List dependencies of `mlx`:
 mamba repoquery depends mlx --channel conda-forge
 ```
+
+</details>
 
 
 About conda-forge
@@ -150,6 +194,7 @@ In order to produce a uniquely identifiable distribution:
 Feedstock Maintainers
 =====================
 
+* [@hmaarrfk](https://github.com/hmaarrfk/)
 * [@ngam](https://github.com/ngam/)
 * [@xhochy](https://github.com/xhochy/)
 
