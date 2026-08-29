@@ -27,7 +27,8 @@ zip_keys:                       # [osx and arm64]
     - MACOSX_SDK_VERSION        # [osx and arm64]
     - github_actions_labels     # [osx and arm64]
 
-# After rerendering, drop the deployment target that does not belong from each
-# .ci_support/osx_arm64_* file.  conda-smithy writes both tiers' values into
-# every one of them, and rattler-build then builds each tier twice.
+# Re-rendering leaves both tiers' values in every .ci_support/osx_arm64_* file's
+# MACOSX_DEPLOYMENT_TARGET; that is a conda-smithy bug, and recipe.yaml's
+# build.variant.ignore_keys makes it harmless.  Nothing here needs hand-editing
+# afterwards.
 

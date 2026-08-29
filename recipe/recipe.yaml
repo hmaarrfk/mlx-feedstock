@@ -29,6 +29,25 @@ build:
   # The old `match(python, "<3.9")` term is gone as redundant: conda-forge
   # builds nothing below 3.10 today, so it could never select anything.
   skip: win or (osx and x86_64)
+  variant:
+    # conda-smithy writes *both* tiers' deployment targets into *every*
+    # .ci_support/osx_arm64_* file, because it derives MACOSX_DEPLOYMENT_TARGET
+    # from c_stdlib_version per variant but never zips the two together.  Left
+    # alone, rattler-build reads that two-valued key as a variant axis of its
+    # own and builds each tier twice, publishing two same-version packages that
+    # differ only in a build hash.
+    #
+    # The value in that file is dead weight anyway: MACOSX_DEPLOYMENT_TARGET in
+    # the build environment comes from the activate.d script of the
+    # macosx_deployment_target_osx-arm64 package, which sets it (and CPPFLAGS'
+    # -mmacosx-version-min, and CMAKE_OSX_DEPLOYMENT_TARGET) unconditionally
+    # from its own version -- and which version gets installed is decided by
+    # c_stdlib_version, always a single value per config.  Dropping the key from
+    # the variant leaves the tiers distinguished by c_stdlib_version, which
+    # stays in the hash, so they still get distinct build strings on top of the
+    # distinct build numbers above.
+    ignore_keys:
+      - MACOSX_DEPLOYMENT_TARGET
 
 requirements:
   build:
