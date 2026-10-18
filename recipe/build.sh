@@ -60,10 +60,15 @@ if [[ "${target_platform}" == "osx-arm64" ]]; then
 
   # Since Xcode 26 the Metal toolchain is a separate download, and some runner
   # images (e.g. GitHub's xcode-27) ship Xcode without it, failing every
-  # `xcrun metal` with "missing Metal Toolchain".  Fetch it when absent.
+  # `xcrun metal` with "missing Metal Toolchain".  Fetch it when absent.  A
+  # plain `-downloadComponent` only stores the asset; exporting it and then
+  # importing the bundle is what makes `xcrun metal` find it.
   if ! xcrun -sdk macosx metal --version >/dev/null 2>&1; then
-    echo "Metal toolchain missing for ${DEVELOPER_DIR}; downloading it"
-    /usr/bin/xcodebuild -downloadComponent MetalToolchain
+    echo "Metal toolchain missing for ${DEVELOPER_DIR}; installing it"
+    metal_export="$(mktemp -d)"
+    /usr/bin/xcodebuild -downloadComponent metalToolchain -exportPath "${metal_export}"
+    /usr/bin/xcodebuild -importComponent metalToolchain -importPath "${metal_export}"/*.exportedBundle
+    rm -rf "${metal_export}"
     xcrun -sdk macosx metal --version
   fi
 
