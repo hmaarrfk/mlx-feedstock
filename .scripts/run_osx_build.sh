@@ -27,7 +27,7 @@ export CONDA_SOLVER="libmamba"
 export CONDA_LIBMAMBA_SOLVER_NO_CHANNELS_FROM_INSTALLED=1
 
 mamba install --update-specs --quiet --yes --channel conda-forge --strict-channel-priority \
-    pip mamba rattler-build mark.harfouche::conda-forge-ci-setup=4.29.0
+    pip mamba rattler-build mark.harfouche::conda-forge-ci-setup=4.29.0 "conda-build>=26.3"  # TEST ONLY, hand-edited
 
 
 
