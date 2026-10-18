@@ -6,7 +6,13 @@ build_platform:
 conda_build:
   error_overlinking: true
 conda_forge_output_validation: true
-conda_install_tool: pixi
+# TEST ONLY -- revert before merging.  Pull the unreleased conda-forge-ci-setup
+# (conda-forge/conda-forge-ci-setup-feedstock#443) and the 26.5 / 27.0
+# macosx_deployment_target packages from the mark.harfouche channel.  pixi drops
+# the channel prefix from remote_ci_setup, so install with mamba meanwhile.
+conda_install_tool: mamba
+remote_ci_setup:
+- mark.harfouche::conda-forge-ci-setup=4.29.0
 conda_build_tool: rattler-build
 github:
   branch_name: main
