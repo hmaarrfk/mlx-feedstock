@@ -8,22 +8,13 @@ jobs:
         shell: bash
         run: |
           set -x
-          SYMLINK_DD=/Applications/Xcode.app/Contents/Developer
-          REAL_DD=$(xcode-select -p)
-          ls -la /Applications | grep -i xcode
-          export DEVELOPER_DIR=$SYMLINK_DD
+          export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+          xcrun -sdk macosx metal --version || echo "0: missing before download (expected)"
+          /usr/bin/xcodebuild -downloadComponent MetalToolchain
+          xcrun -sdk macosx metal --version && echo "IMMEDIATE: works" || echo "IMMEDIATE: missing right after download"
+          for i in $(seq 1 15); do
+            if xcrun -sdk macosx metal --version >/dev/null 2>&1; then echo "WAIT: works after ${i} tries without showComponent"; break; fi
+            sleep 2
+          done
           xcodebuild -showComponent metalToolchain || true
-          xcodebuild -downloadComponent metalToolchain
-          xcodebuild -showComponent metalToolchain || true
-          echo "== symlink DEVELOPER_DIR"
-          DEVELOPER_DIR=$SYMLINK_DD xcrun -sdk macosx metal --version || echo "A: missing via symlink DEVELOPER_DIR"
-          echo "== real DEVELOPER_DIR"
-          DEVELOPER_DIR=$REAL_DD xcrun -sdk macosx metal --version || echo "B: missing via real DEVELOPER_DIR"
-          echo "== no DEVELOPER_DIR"
-          env -u DEVELOPER_DIR xcrun -sdk macosx metal --version || echo "C: missing without DEVELOPER_DIR"
-          echo "== clean env, symlink"
-          env -i PATH=/usr/bin:/bin HOME=$HOME DEVELOPER_DIR=$SYMLINK_DD xcrun -sdk macosx metal --version || echo "D: missing clean env symlink"
-          echo "== SDKROOT set to Xcode SDK"
-          SDKROOT=$REAL_DD/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk DEVELOPER_DIR=$SYMLINK_DD xcrun -sdk macosx metal --version || echo "E: missing with SDKROOT"
-          echo "== resolved symlink path"
-          DEVELOPER_DIR=$(cd $SYMLINK_DD && pwd -P) xcrun -sdk macosx metal --version || echo "F: missing via resolved path"
+          xcrun -sdk macosx metal --version && echo "AFTER showComponent: works" || echo "AFTER showComponent: missing"
