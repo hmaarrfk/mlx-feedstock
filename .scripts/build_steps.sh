@@ -33,10 +33,8 @@ solver: libmamba
 
 CONDARC
 export CONDA_LIBMAMBA_SOLVER_NO_CHANNELS_FROM_INSTALLED=1
-mamba install --update-specs --yes --quiet --channel conda-forge --strict-channel-priority \
-    pip mamba rattler-build conda-forge-ci-setup=4 "conda-build>=26.3"
-mamba update --update-specs --yes --quiet --channel conda-forge --strict-channel-priority \
-    pip mamba rattler-build conda-forge-ci-setup=4 "conda-build>=26.3"
+conda install --update-specs --yes --quiet --channel conda-forge --strict-channel-priority \
+    pip conda conda-libmamba-solver rattler-build conda-forge-ci-setup=4 "conda-build>=26.3"
 
 # set up the condarc
 setup_conda_rc "${FEEDSTOCK_ROOT}" "${RECIPE_ROOT}" "${CONFIG_FILE}"
