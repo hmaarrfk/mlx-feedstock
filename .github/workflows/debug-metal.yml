@@ -1,0 +1,35 @@
+name: debug metal toolchain
+on: push
+jobs:
+  debug:
+    runs-on: xcode-27
+    steps:
+      - name: probe
+        shell: bash
+        run: |
+          set -x
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showComponent metalToolchain || true
+          xcrun -sdk macosx metal --version || echo "1: metal missing"
+          xcrun --find metal || true
+          ls -la /System/Library/AssetsV2/ | grep -i metal || true
+          xcodebuild -downloadComponent metalToolchain
+          xcodebuild -showComponent metalToolchain || true
+          xcrun -sdk macosx metal --version || echo "2: metal missing after download"
+          xcrun --kill-cache || true
+          xcrun -sdk macosx metal --version || echo "3: metal missing after kill-cache"
+          TMPDIR=$(mktemp -d) xcrun -sdk macosx metal --version || echo "4: missing with fresh TMPDIR"
+          ls /private/var/run/com.apple.security.cryptexd/mnt/ 2>&1 || true
+          ls -d /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain/*/AssetData/* 2>&1 || true
+          find /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain -maxdepth 4 2>/dev/null | head -30
+          sudo -n true && echo "passwordless sudo available"
+          xcrun -sdk macosx metal --version && exit 0
+          echo "trying sudo xcodebuild -runFirstLaunch / import"
+          mkdir -p /tmp/mexp && xcodebuild -downloadComponent metalToolchain -exportPath /tmp/mexp
+          sudo xcodebuild -importComponent metalToolchain -importPath /tmp/mexp/*.exportedBundle || true
+          xcrun --kill-cache || true
+          xcrun -sdk macosx metal --version || echo "5: missing after sudo import"
+          sudo xcodebuild -runFirstLaunch || true
+          xcrun -sdk macosx metal --version || echo "6: missing after runFirstLaunch"
+          xcodebuild -showComponent metalToolchain || true
