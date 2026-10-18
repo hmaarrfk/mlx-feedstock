@@ -1,0 +1,17 @@
+package:
+  name: metal-probe
+  version: "0.1"
+build:
+  script: |
+    set -x
+    env | sort > "$SRC_DIR/../env-in-build.txt" || true
+    env | sort
+    xcrun -sdk macosx metal --version || echo "R0: missing in rattler-build before download"
+    /usr/bin/xcodebuild -downloadComponent MetalToolchain
+    xcrun -sdk macosx metal --version && echo "R1: works in rattler-build after download" || echo "R1: missing in rattler-build after download"
+    /usr/bin/xcodebuild -showComponent metalToolchain || true
+    for v in HOME TMPDIR CFFIXED_USER_HOME; do echo "$v=${!v:-<unset>}"; done
+    HOME=/Users/runner xcrun -sdk macosx metal --version && echo "R2: works with HOME=/Users/runner" || echo "R2: missing with HOME=/Users/runner"
+    env -u TMPDIR xcrun -sdk macosx metal --version && echo "R3: works without TMPDIR" || echo "R3: missing without TMPDIR"
+    env -i PATH=/usr/bin:/bin HOME=/Users/runner xcrun -sdk macosx metal --version && echo "R4: works clean env" || echo "R4: missing clean env"
+    mkdir -p $PREFIX/share && touch $PREFIX/share/probe

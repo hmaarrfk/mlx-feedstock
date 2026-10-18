@@ -4,17 +4,11 @@ jobs:
   debug:
     runs-on: xcode-27
     steps:
-      - name: probe
+      - uses: actions/checkout@v4
+      - name: probe in rattler-build
         shell: bash
         run: |
-          set -x
-          export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-          xcrun -sdk macosx metal --version || echo "0: missing before download (expected)"
-          /usr/bin/xcodebuild -downloadComponent MetalToolchain
-          xcrun -sdk macosx metal --version && echo "IMMEDIATE: works" || echo "IMMEDIATE: missing right after download"
-          for i in $(seq 1 15); do
-            if xcrun -sdk macosx metal --version >/dev/null 2>&1; then echo "WAIT: works after ${i} tries without showComponent"; break; fi
-            sleep 2
-          done
-          xcodebuild -showComponent metalToolchain || true
-          xcrun -sdk macosx metal --version && echo "AFTER showComponent: works" || echo "AFTER showComponent: missing"
+          curl -fsSL https://pixi.sh/install.sh | bash
+          export PATH="$HOME/.pixi/bin:$PATH"
+          echo "outer HOME=$HOME TMPDIR=${TMPDIR:-<unset>}"
+          pixi exec rattler-build build --recipe probe -c conda-forge --output-dir /tmp/probe-out 2>&1 | grep -E "R[0-9]:|HOME=|TMPDIR=|CFFIXED|Apple metal|Status:|Done downloading|error" || true
