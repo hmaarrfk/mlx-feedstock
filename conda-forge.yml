@@ -19,7 +19,8 @@ provider:
   # macosx_deployment_target 26.0, whose strong run_exports puts `__osx >=26.0`
   # into the *host* environment, which cannot be solved on Azure's macOS 15
   # agents.  Azure only offers macOS 26 as an Intel-only public preview, whereas
-  # GitHub's macos-26 runner is arm64 and ships Xcode 26.x.
+  # GitHub's macos-26 runner is arm64 and ships Xcode 26.x.  The macOS 27 tier
+  # likewise needs GitHub's xcode-27 image, which runs macOS 27 with Xcode 27.
   #
   # Keyed on osx_64, not osx_arm64: conda-smithy resolves a target's CI provider
   # through its *build* platform, and `build_platform` above cross-compiles
