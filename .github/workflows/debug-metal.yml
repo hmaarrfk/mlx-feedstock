@@ -8,28 +8,22 @@ jobs:
         shell: bash
         run: |
           set -x
-          xcode-select -p
-          xcodebuild -version
+          SYMLINK_DD=/Applications/Xcode.app/Contents/Developer
+          REAL_DD=$(xcode-select -p)
+          ls -la /Applications | grep -i xcode
+          export DEVELOPER_DIR=$SYMLINK_DD
           xcodebuild -showComponent metalToolchain || true
-          xcrun -sdk macosx metal --version || echo "1: metal missing"
-          xcrun --find metal || true
-          ls -la /System/Library/AssetsV2/ | grep -i metal || true
           xcodebuild -downloadComponent metalToolchain
           xcodebuild -showComponent metalToolchain || true
-          xcrun -sdk macosx metal --version || echo "2: metal missing after download"
-          xcrun --kill-cache || true
-          xcrun -sdk macosx metal --version || echo "3: metal missing after kill-cache"
-          TMPDIR=$(mktemp -d) xcrun -sdk macosx metal --version || echo "4: missing with fresh TMPDIR"
-          ls /private/var/run/com.apple.security.cryptexd/mnt/ 2>&1 || true
-          ls -d /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain/*/AssetData/* 2>&1 || true
-          find /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain -maxdepth 4 2>/dev/null | head -30
-          sudo -n true && echo "passwordless sudo available"
-          xcrun -sdk macosx metal --version && exit 0
-          echo "trying sudo xcodebuild -runFirstLaunch / import"
-          mkdir -p /tmp/mexp && xcodebuild -downloadComponent metalToolchain -exportPath /tmp/mexp
-          sudo xcodebuild -importComponent metalToolchain -importPath /tmp/mexp/*.exportedBundle || true
-          xcrun --kill-cache || true
-          xcrun -sdk macosx metal --version || echo "5: missing after sudo import"
-          sudo xcodebuild -runFirstLaunch || true
-          xcrun -sdk macosx metal --version || echo "6: missing after runFirstLaunch"
-          xcodebuild -showComponent metalToolchain || true
+          echo "== symlink DEVELOPER_DIR"
+          DEVELOPER_DIR=$SYMLINK_DD xcrun -sdk macosx metal --version || echo "A: missing via symlink DEVELOPER_DIR"
+          echo "== real DEVELOPER_DIR"
+          DEVELOPER_DIR=$REAL_DD xcrun -sdk macosx metal --version || echo "B: missing via real DEVELOPER_DIR"
+          echo "== no DEVELOPER_DIR"
+          env -u DEVELOPER_DIR xcrun -sdk macosx metal --version || echo "C: missing without DEVELOPER_DIR"
+          echo "== clean env, symlink"
+          env -i PATH=/usr/bin:/bin HOME=$HOME DEVELOPER_DIR=$SYMLINK_DD xcrun -sdk macosx metal --version || echo "D: missing clean env symlink"
+          echo "== SDKROOT set to Xcode SDK"
+          SDKROOT=$REAL_DD/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk DEVELOPER_DIR=$SYMLINK_DD xcrun -sdk macosx metal --version || echo "E: missing with SDKROOT"
+          echo "== resolved symlink path"
+          DEVELOPER_DIR=$(cd $SYMLINK_DD && pwd -P) xcrun -sdk macosx metal --version || echo "F: missing via resolved path"
